@@ -5,7 +5,7 @@ import {
   LogOut,
   Plus,
   Search,
-  Calendar,
+  Calendar as CalendarIcon,
   Trash2,
   Edit2,
   Moon,
@@ -30,7 +30,10 @@ import {
   Archive,
   RefreshCcw,
   LayoutList,
-  Clock
+  Clock,
+  Bell,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   BarChart,
@@ -90,6 +93,14 @@ interface Toast {
   id: string;
   message: string;
   type: 'success' | 'error' | 'info';
+}
+
+interface NotificationItem {
+    id: string;
+    type: 'overdue' | 'due_today' | 'activity';
+    message: string;
+    timestamp: number;
+    taskId?: string;
 }
 
 // --- Constants & Helpers ---
@@ -290,7 +301,7 @@ const TaskCard: React.FC<{
                     {task.priority}
                 </span>
                 <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                    <Calendar size={12} />
+                    <CalendarIcon size={12} />
                     <span className={new Date(task.deadline).getTime() < Date.now() && task.status !== 'Completed' ? 'text-red-500' : ''}>
                         {formatDate(task.deadline)}
                     </span>
@@ -466,7 +477,7 @@ const TaskCard: React.FC<{
 
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <Calendar size={14} />
+            <CalendarIcon size={14} />
             <span className={`${
                new Date(task.deadline).getTime() < Date.now() && task.status !== 'Completed' ? 'text-red-500 font-bold' : ''
             }`}>
@@ -500,9 +511,13 @@ const App: React.FC = () => {
   
   // State: UI/UX
   const [darkMode, setDarkMode] = useState(false);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'tasks' | 'archived' | 'recycle_bin'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'tasks' | 'archived' | 'recycle_bin' | 'calendar'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   
+  // State: Calendar
+  const [currentDate, setCurrentDate] = useState(new Date());
+
   // State: Task Management
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<Priority | 'All'>('All');
@@ -594,6 +609,52 @@ const App: React.FC = () => {
       user: user?.name || 'User'
     };
     setActivities(prev => [newActivity, ...prev].slice(0, 50)); // Keep last 50 activities
+  };
+
+  // Calendar Helpers
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    return new Date(year, month, 1).getDay();
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  const handleDateClick = (day: number) => {
+      // Open modal with pre-filled date
+      const selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      // Set time to current time but on selected date
+      const now = new Date();
+      selectedDate.setHours(now.getHours(), now.getMinutes());
+      
+      // Local time ISO string adjustment
+      const tzOffset = selectedDate.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(selectedDate.getTime() - tzOffset)).toISOString().slice(0, 16);
+
+      setEditingTask(null);
+      setNewTaskForm({
+          title: '',
+          description: '',
+          deadline: localISOTime,
+          priority: 'Medium',
+          category: 'Work',
+          imageUrl: '',
+          subtasks: []
+      });
+      setNewSubtaskInput('');
+      setIsTaskModalOpen(true);
   };
 
   // --- Handlers: Auth ---
@@ -898,7 +959,7 @@ const App: React.FC = () => {
     setEditingTask(null);
   };
 
-  // --- Derived State: Analytics ---
+  // --- Derived State: Analytics & Notifications ---
 
   const stats = useMemo(() => {
     // Only count active tasks for main stats
@@ -909,6 +970,50 @@ const App: React.FC = () => {
     const overdue = activeTasks.filter(t => t.status === 'Pending' && new Date(t.deadline).getTime() < Date.now()).length;
     return { total, completed, pending, overdue };
   }, [tasks]);
+
+  const notifications: NotificationItem[] = useMemo(() => {
+      const activeTasks = tasks.filter(t => !t.deletedAt && !t.isArchived && t.status === 'Pending');
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const notifs: NotificationItem[] = [];
+
+      // Overdue Tasks
+      activeTasks.forEach(t => {
+          const due = new Date(t.deadline);
+          if (due.getTime() < now.getTime()) {
+              notifs.push({
+                  id: `overdue-${t.id}`,
+                  type: 'overdue',
+                  message: `Task overdue: ${t.title}`,
+                  timestamp: due.getTime(),
+                  taskId: t.id
+              });
+          } else if (new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime() === today.getTime()) {
+              // Due Today
+               notifs.push({
+                  id: `due-${t.id}`,
+                  type: 'due_today',
+                  message: `Due today: ${t.title}`,
+                  timestamp: due.getTime(),
+                  taskId: t.id
+              });
+          }
+      });
+
+      // Recent Activity (System) - last 3
+      activities.slice(0, 3).forEach(act => {
+          notifs.push({
+              id: `act-${act.id}`,
+              type: 'activity',
+              message: `${act.action}: ${act.target} by ${act.user}`,
+              timestamp: act.timestamp
+          });
+      });
+
+      // Sort by newest
+      return notifs.sort((a, b) => b.timestamp - a.timestamp);
+  }, [tasks, activities]);
 
   const priorityData = useMemo(() => {
     const activeTasks = tasks.filter(t => !t.deletedAt && !t.isArchived);
@@ -1065,6 +1170,14 @@ const App: React.FC = () => {
               <CheckCircle2 size={20} />
               My Tasks
             </button>
+
+             <button
+              onClick={() => { setCurrentView('calendar'); setIsSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === 'calendar' ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+            >
+              <CalendarIcon size={20} />
+              Calendar
+            </button>
             
             <button
               onClick={() => { setCurrentView('archived'); setIsSidebarOpen(false); }}
@@ -1188,15 +1301,147 @@ const App: React.FC = () => {
               {currentView.replace('_', ' ')}
             </h2>
           </div>
-          <div className="hidden md:flex items-center text-sm text-gray-500 dark:text-gray-400">
-            <span className="font-medium mr-1">{getGreeting()},</span> {user.name}
+          <div className="flex items-center gap-4">
+            {/* Notification Bell */}
+            <div className="relative">
+                <button 
+                    onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300 relative"
+                >
+                    <Bell size={20} />
+                    {notifications.length > 0 && (
+                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>
+                    )}
+                </button>
+                
+                {isNotificationsOpen && (
+                    <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsNotificationsOpen(false)}></div>
+                        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 z-50 animate-fadeIn overflow-hidden">
+                            <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/50">
+                                <h3 className="font-semibold text-gray-800 dark:text-white text-sm">Notifications</h3>
+                            </div>
+                            <div className="max-h-80 overflow-y-auto">
+                                {notifications.length === 0 ? (
+                                    <div className="p-4 text-center text-sm text-gray-500">No new notifications</div>
+                                ) : (
+                                    notifications.map(notif => (
+                                        <div 
+                                            key={notif.id} 
+                                            className="px-4 py-3 border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                            onClick={() => {
+                                                setIsNotificationsOpen(false);
+                                                if (notif.taskId) setCurrentView('tasks');
+                                            }}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                {notif.type === 'overdue' ? <AlertCircle size={16} className="text-red-500 mt-1 shrink-0" /> :
+                                                 notif.type === 'due_today' ? <Clock size={16} className="text-amber-500 mt-1 shrink-0" /> :
+                                                 <Info size={16} className="text-blue-500 mt-1 shrink-0" />}
+                                                <div>
+                                                    <p className="text-sm text-gray-800 dark:text-gray-200">{notif.message}</p>
+                                                    <span className="text-xs text-gray-400 mt-1 block">{formatTime(notif.timestamp)}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            <div className="hidden md:flex items-center text-sm text-gray-500 dark:text-gray-400 border-l border-gray-200 dark:border-slate-700 pl-4">
+                <span className="font-medium mr-1">{getGreeting()},</span> {user.name}
+            </div>
           </div>
         </header>
 
         {/* Scrollable Area */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-8">
           
-          {currentView === 'dashboard' ? (
+          {currentView === 'calendar' ? (
+              <div className="max-w-7xl mx-auto space-y-6 animate-fadeIn h-full flex flex-col">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex-1 flex flex-col overflow-hidden">
+                      {/* Calendar Header */}
+                      <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-slate-700">
+                          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                              {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                          </h2>
+                          <div className="flex gap-2">
+                              <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                                  <ChevronLeft size={20} className="text-gray-600 dark:text-gray-300"/>
+                              </button>
+                              <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-sm bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40">
+                                  Today
+                              </button>
+                              <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                                  <ChevronRight size={20} className="text-gray-600 dark:text-gray-300"/>
+                              </button>
+                          </div>
+                      </div>
+
+                      {/* Calendar Grid */}
+                      <div className="flex-1 grid grid-cols-7 grid-rows-[auto_1fr] min-h-[600px]">
+                          {/* Days Header */}
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                              <div key={day} className="p-2 text-center text-sm font-semibold text-gray-500 dark:text-gray-400 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0">
+                                  {day}
+                              </div>
+                          ))}
+
+                          {/* Days Cells */}
+                          {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, i) => (
+                               <div key={`empty-${i}`} className="bg-gray-50/50 dark:bg-slate-900/30 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0"></div>
+                          ))}
+                          
+                          {Array.from({ length: getDaysInMonth(currentDate) }).map((_, i) => {
+                              const day = i + 1;
+                              const currentDayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                              const dayTasks = tasks.filter(t => !t.deletedAt && !t.isArchived && new Date(t.deadline).toDateString() === currentDayDate.toDateString());
+                              const isToday = new Date().toDateString() === currentDayDate.toDateString();
+
+                              return (
+                                  <div 
+                                      key={day} 
+                                      className={`min-h-[100px] p-2 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group relative`}
+                                      onClick={() => handleDateClick(day)}
+                                  >
+                                      <div className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-primary-600 text-white shadow-md' : 'text-gray-700 dark:text-gray-300'}`}>
+                                          {day}
+                                      </div>
+                                      <div className="space-y-1 overflow-y-auto max-h-[80px] custom-scrollbar">
+                                          {dayTasks.map(t => (
+                                              <div 
+                                                  key={t.id}
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      openEditModal(t);
+                                                  }}
+                                                  className={`text-xs px-1.5 py-1 rounded truncate border-l-2 cursor-pointer hover:opacity-80 shadow-sm ${
+                                                      t.status === 'Completed' ? 'bg-gray-100 text-gray-500 border-gray-400 dark:bg-slate-700 dark:text-gray-400 line-through' :
+                                                      t.priority === 'High' ? 'bg-red-50 text-red-700 border-red-500 dark:bg-red-900/20 dark:text-red-300' :
+                                                      t.priority === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-500 dark:bg-amber-900/20 dark:text-amber-300' :
+                                                      'bg-blue-50 text-blue-700 border-blue-500 dark:bg-blue-900/20 dark:text-blue-300'
+                                                  }`}
+                                                  title={t.title}
+                                              >
+                                                  {t.title}
+                                              </div>
+                                          ))}
+                                      </div>
+                                      {/* Add hint on hover */}
+                                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                                           <Plus className="text-gray-300 dark:text-gray-600 w-8 h-8" />
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                  </div>
+              </div>
+          ) : currentView === 'dashboard' ? (
             <div className="space-y-6 max-w-7xl mx-auto animate-fadeIn">
               {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1222,31 +1467,55 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 {/* Left Column: Charts (Stacked) */}
                 <div className="xl:col-span-2 space-y-6">
-                    {/* Priority Chart */}
+                    {/* Priority Chart - Improved Layout */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Task Priority</h3>
-                        <div className="h-64">
-                            <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                data={priorityData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
-                                paddingAngle={5}
-                                dataKey="value"
-                                >
-                                {priorityData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
-                                ))}
-                                </Pie>
-                                <Tooltip 
-                                contentStyle={{ backgroundColor: darkMode ? '#1e293b' : '#fff', borderColor: darkMode ? '#334155' : '#e2e8f0', color: darkMode ? '#fff' : '#000' }}
-                                />
-                                <Legend />
-                            </PieChart>
-                            </ResponsiveContainer>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Task Priority Distribution</h3>
+                        <div className="flex flex-col md:flex-row items-center justify-between h-64">
+                            {/* Chart */}
+                            <div className="w-full md:w-1/2 h-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                        data={priorityData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        >
+                                        {priorityData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
+                                        ))}
+                                        </Pie>
+                                        <Tooltip 
+                                        contentStyle={{ backgroundColor: darkMode ? '#1e293b' : '#fff', borderColor: darkMode ? '#334155' : '#e2e8f0', color: darkMode ? '#fff' : '#000' }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            {/* Custom Legend */}
+                            <div className="w-full md:w-1/2 flex flex-col justify-center space-y-4 pl-0 md:pl-8">
+                                {priorityData.map((item) => {
+                                    const total = priorityData.reduce((acc, curr) => acc + curr.value, 0);
+                                    const percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                                    return (
+                                        <div key={item.name} className="flex items-center justify-between group">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[item.name as keyof typeof COLORS] }}></div>
+                                                <span className="text-gray-600 dark:text-gray-300 font-medium">{item.name} Priority</span>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-gray-900 dark:text-white font-bold">{item.value}</span>
+                                                <span className="text-xs text-gray-400 w-10 text-right">{percentage}%</span>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                                {priorityData.every(i => i.value === 0) && (
+                                     <p className="text-sm text-gray-400 text-center italic">No pending tasks to display</p>
+                                )}
+                            </div>
                         </div>
                     </div>
 
