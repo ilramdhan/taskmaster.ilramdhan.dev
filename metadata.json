@@ -1,0 +1,5 @@
+{
+  "name": "Ultimate Task Manager",
+  "description": "A comprehensive, client-side task management dashboard with analytics, dark mode, and persistent storage.",
+  "requestFramePermissions": []
+}

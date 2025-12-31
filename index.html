@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ultimate Task Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                50: '#eef2ff',
+                100: '#e0e7ff',
+                500: '#6366f1',
+                600: '#4f46e5',
+                700: '#4338ca',
+              }
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div id="root"></div>
+  </body>
+</html>
