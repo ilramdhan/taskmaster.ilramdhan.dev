@@ -33,7 +33,8 @@ import {
   Clock,
   Bell,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ArrowRight
 } from 'lucide-react';
 import {
   BarChart,
@@ -65,7 +66,8 @@ interface Task {
   id: string;
   title: string;
   description: string;
-  deadline: string; // ISO string
+  startDate: string; // ISO string (New Field)
+  deadline: string; // ISO string (Acts as End Date)
   priority: Priority;
   category: Category;
   status: Status;
@@ -78,7 +80,7 @@ interface Task {
 
 interface Activity {
   id: string;
-  action: 'Created' | 'Updated' | 'Deleted' | 'Completed' | 'Reopened' | 'System' | 'Archived' | 'Restored';
+  action: 'Created' | 'Updated' | 'Deleted' | 'Completed' | 'Reopened' | 'System' | 'Archived' | 'Restored' | 'Moved';
   target: string; // Task Title
   timestamp: number;
   user: string;
@@ -144,6 +146,19 @@ const getGreeting = () => {
   return 'Good Evening';
 };
 
+// Check if a date is between start and end (inclusive)
+const isDateInRange = (checkDate: Date, startDateStr: string, endDateStr: string) => {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    
+    // Normalize to YYYY-MM-DD to ignore time for day comparison
+    const check = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+    const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const e = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+
+    return check.getTime() >= s.getTime() && check.getTime() <= e.getTime();
+};
+
 // --- Dummy Data Generator ---
 
 const generateDummyData = (): { tasks: Task[], activities: Activity[] } => {
@@ -155,8 +170,13 @@ const generateDummyData = (): { tasks: Task[], activities: Activity[] } => {
     const randomPriority = PRIORITIES[Math.floor(Math.random() * PRIORITIES.length)];
     const randomCategory = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
     const randomStatus = Math.random() > 0.4 ? 'Pending' : 'Completed';
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + Math.floor(Math.random() * 10) - 2);
+    
+    // Create Start and End dates
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() + Math.floor(Math.random() * 10) - 5); // Start range -5 to +5 days from now
+    
+    const deadline = new Date(startDate);
+    deadline.setDate(deadline.getDate() + Math.floor(Math.random() * 3) + 1); // Duration 1-4 days
 
     // Simulate some archived and deleted tasks
     const isArchived = i === 7;
@@ -166,7 +186,8 @@ const generateDummyData = (): { tasks: Task[], activities: Activity[] } => {
       id: generateId(),
       title: titles[i],
       description: 'This is a sample task description generated for demonstration purposes. It contains enough text to test the layout.',
-      deadline: futureDate.toISOString(),
+      startDate: startDate.toISOString(),
+      deadline: deadline.toISOString(),
       priority: randomPriority,
       category: randomCategory,
       status: randomStatus,
@@ -534,6 +555,7 @@ const App: React.FC = () => {
   const [newTaskForm, setNewTaskForm] = useState<Partial<Task>>({
     title: '',
     description: '',
+    startDate: '',
     deadline: '',
     priority: 'Medium',
     category: 'Work',
@@ -642,12 +664,17 @@ const App: React.FC = () => {
       // Local time ISO string adjustment
       const tzOffset = selectedDate.getTimezoneOffset() * 60000;
       const localISOTime = (new Date(selectedDate.getTime() - tzOffset)).toISOString().slice(0, 16);
+      
+      // Default deadline is 1 hour after start
+      const deadlineDate = new Date(selectedDate.getTime() + 60 * 60 * 1000);
+      const localISODeadline = (new Date(deadlineDate.getTime() - tzOffset)).toISOString().slice(0, 16);
 
       setEditingTask(null);
       setNewTaskForm({
           title: '',
           description: '',
-          deadline: localISOTime,
+          startDate: localISOTime,
+          deadline: localISODeadline,
           priority: 'Medium',
           category: 'Work',
           imageUrl: '',
@@ -655,6 +682,47 @@ const App: React.FC = () => {
       });
       setNewSubtaskInput('');
       setIsTaskModalOpen(true);
+  };
+
+  // Drag and Drop Helpers for Calendar
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+      e.dataTransfer.setData('taskId', taskId);
+      e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, day: number) => {
+      e.preventDefault();
+      const taskId = e.dataTransfer.getData('taskId');
+      if (!taskId) return;
+
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      // Calculate new start date
+      const newStartDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      
+      // Keep original time of day
+      const oldStartDate = new Date(task.startDate);
+      newStartDate.setHours(oldStartDate.getHours(), oldStartDate.getMinutes());
+
+      // Calculate duration to shift deadline
+      const oldDeadline = new Date(task.deadline);
+      const duration = oldDeadline.getTime() - oldStartDate.getTime();
+      
+      const newDeadline = new Date(newStartDate.getTime() + duration);
+
+      // Update task
+      setTasks(prev => prev.map(t => 
+          t.id === taskId ? { ...t, startDate: newStartDate.toISOString(), deadline: newDeadline.toISOString() } : t
+      ));
+      
+      logActivity('Moved', task.title);
+      addToast(`Moved task to ${formatDate(newStartDate.toISOString())}`);
   };
 
   // --- Handlers: Auth ---
@@ -710,7 +778,7 @@ const App: React.FC = () => {
 
   const handleExportCSV = () => {
     // CSV Header
-    const headers = ["ID", "Title", "Description", "Priority", "Category", "Status", "Deadline", "Created At"];
+    const headers = ["ID", "Title", "Description", "Priority", "Category", "Status", "Start Date", "Deadline", "Created At"];
     
     // CSV Rows
     const rows = tasks.map(t => [
@@ -720,6 +788,7 @@ const App: React.FC = () => {
       t.priority,
       t.category,
       t.status,
+      t.startDate,
       t.deadline,
       new Date(t.createdAt).toISOString()
     ]);
@@ -783,7 +852,7 @@ const App: React.FC = () => {
             // Basic split (Note: robust CSV parsing usually needs a library for edge cases with commas in quotes)
             const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
             
-            if (row && row.length >= 7) {
+            if (row && row.length >= 8) { // Updated for new column count
                // Cleanup quotes
                const clean = (str: string) => str ? str.replace(/^"|"$/g, '').replace(/""/g, '"') : '';
 
@@ -794,7 +863,8 @@ const App: React.FC = () => {
                  priority: (clean(row[3]) as Priority) || 'Medium',
                  category: (clean(row[4]) as Category) || 'Work',
                  status: (clean(row[5]) as Status) || 'Pending',
-                 deadline: clean(row[6]) || new Date().toISOString(),
+                 startDate: clean(row[6]) || new Date().toISOString(),
+                 deadline: clean(row[7]) || new Date().toISOString(),
                  createdAt: Date.now(),
                  subtasks: [],
                  isArchived: false,
@@ -841,9 +911,14 @@ const App: React.FC = () => {
 
   const handleSaveTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTaskForm.title || !newTaskForm.deadline) {
+    if (!newTaskForm.title || !newTaskForm.deadline || !newTaskForm.startDate) {
       addToast('Please fill in required fields', 'error');
       return;
+    }
+
+    if (new Date(newTaskForm.deadline) < new Date(newTaskForm.startDate)) {
+        addToast('Deadline cannot be before Start Date', 'error');
+        return;
     }
 
     if (editingTask) {
@@ -855,6 +930,7 @@ const App: React.FC = () => {
         id: generateId(),
         title: newTaskForm.title!,
         description: newTaskForm.description || '',
+        startDate: newTaskForm.startDate!,
         deadline: newTaskForm.deadline!,
         priority: (newTaskForm.priority as Priority) || 'Medium',
         category: (newTaskForm.category as Category) || 'Work',
@@ -937,7 +1013,8 @@ const App: React.FC = () => {
     setNewTaskForm({
       title: '',
       description: '',
-      deadline: new Date().toISOString().slice(0, 16),
+      startDate: new Date().toISOString().slice(0, 16),
+      deadline: new Date(Date.now() + 3600000).toISOString().slice(0, 16), // +1 hour
       priority: 'Medium',
       category: 'Work',
       imageUrl: '',
@@ -949,7 +1026,11 @@ const App: React.FC = () => {
 
   const openEditModal = (task: Task) => {
     setEditingTask(task);
-    setNewTaskForm({ ...task, deadline: task.deadline.slice(0, 16) });
+    setNewTaskForm({ 
+        ...task, 
+        startDate: task.startDate.slice(0, 16),
+        deadline: task.deadline.slice(0, 16) 
+    });
     setNewSubtaskInput('');
     setIsTaskModalOpen(true);
   };
@@ -1383,7 +1464,7 @@ const App: React.FC = () => {
                       </div>
 
                       {/* Calendar Grid */}
-                      <div className="flex-1 grid grid-cols-7 grid-rows-[auto_1fr] min-h-[600px]">
+                      <div className="flex-1 grid grid-cols-7 grid-rows-[auto_1fr]">
                           {/* Days Header */}
                           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                               <div key={day} className="p-2 text-center text-sm font-semibold text-gray-500 dark:text-gray-400 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0">
@@ -1393,43 +1474,51 @@ const App: React.FC = () => {
 
                           {/* Days Cells */}
                           {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, i) => (
-                               <div key={`empty-${i}`} className="bg-gray-50/50 dark:bg-slate-900/30 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0"></div>
+                               <div key={`empty-${i}`} className="min-h-[8rem] bg-gray-50/50 dark:bg-slate-900/30 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0"></div>
                           ))}
                           
                           {Array.from({ length: getDaysInMonth(currentDate) }).map((_, i) => {
                               const day = i + 1;
                               const currentDayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-                              const dayTasks = tasks.filter(t => !t.deletedAt && !t.isArchived && new Date(t.deadline).toDateString() === currentDayDate.toDateString());
+                              // Filter tasks that span across this date
+                              const dayTasks = tasks.filter(t => !t.deletedAt && !t.isArchived && isDateInRange(currentDayDate, t.startDate, t.deadline));
                               const isToday = new Date().toDateString() === currentDayDate.toDateString();
 
                               return (
                                   <div 
                                       key={day} 
-                                      className={`min-h-[100px] p-2 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group relative`}
+                                      className={`min-h-[8rem] p-2 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group relative`}
                                       onClick={() => handleDateClick(day)}
+                                      onDragOver={handleDragOver}
+                                      onDrop={(e) => handleDrop(e, day)}
                                   >
                                       <div className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-primary-600 text-white shadow-md' : 'text-gray-700 dark:text-gray-300'}`}>
                                           {day}
                                       </div>
                                       <div className="space-y-1 overflow-y-auto max-h-[80px] custom-scrollbar">
-                                          {dayTasks.map(t => (
+                                          {dayTasks.map(t => {
+                                              const isStartDay = new Date(t.startDate).toDateString() === currentDayDate.toDateString();
+                                              return (
                                               <div 
                                                   key={t.id}
+                                                  draggable
+                                                  onDragStart={(e) => handleDragStart(e, t.id)}
                                                   onClick={(e) => {
                                                       e.stopPropagation();
                                                       openEditModal(t);
                                                   }}
-                                                  className={`text-xs px-1.5 py-1 rounded truncate border-l-2 cursor-pointer hover:opacity-80 shadow-sm ${
+                                                  className={`text-xs px-1.5 py-1 rounded truncate border-l-2 cursor-grab active:cursor-grabbing hover:opacity-80 shadow-sm ${
                                                       t.status === 'Completed' ? 'bg-gray-100 text-gray-500 border-gray-400 dark:bg-slate-700 dark:text-gray-400 line-through' :
                                                       t.priority === 'High' ? 'bg-red-50 text-red-700 border-red-500 dark:bg-red-900/20 dark:text-red-300' :
                                                       t.priority === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-500 dark:bg-amber-900/20 dark:text-amber-300' :
                                                       'bg-blue-50 text-blue-700 border-blue-500 dark:bg-blue-900/20 dark:text-blue-300'
                                                   }`}
-                                                  title={t.title}
+                                                  title={`${t.title} (${formatDate(t.startDate)} - ${formatDate(t.deadline)})`}
                                               >
+                                                  {isStartDay && <span className="font-bold mr-1">★</span>}
                                                   {t.title}
                                               </div>
-                                          ))}
+                                          )})}
                                       </div>
                                       {/* Add hint on hover */}
                                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
@@ -1560,12 +1649,14 @@ const App: React.FC = () => {
                                         log.action === 'Completed' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
                                         log.action === 'Deleted' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
                                         log.action === 'Archived' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' :
+                                        log.action === 'Moved' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' :
                                         'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                                     }`}>
                                         {log.action === 'Created' && <Plus size={12} />}
                                         {log.action === 'Completed' && <Check size={12} />}
                                         {log.action === 'Deleted' && <Trash2 size={12} />}
                                         {log.action === 'Archived' && <Archive size={12} />}
+                                        {log.action === 'Moved' && <ArrowRight size={12} />}
                                         {(log.action === 'Updated' || log.action === 'Reopened' || log.action === 'System' || log.action === 'Restored') && <Info size={12} />}
                                     </div>
                                     <div>
@@ -1821,16 +1912,28 @@ const App: React.FC = () => {
               </select>
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deadline</label>
-            <input
-              required
-              type="datetime-local"
-              value={newTaskForm.deadline}
-              onChange={(e) => setNewTaskForm({ ...newTaskForm, deadline: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
-            />
+          
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                <input
+                required
+                type="datetime-local"
+                value={newTaskForm.startDate}
+                onChange={(e) => setNewTaskForm({ ...newTaskForm, startDate: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deadline (End)</label>
+                <input
+                required
+                type="datetime-local"
+                value={newTaskForm.deadline}
+                onChange={(e) => setNewTaskForm({ ...newTaskForm, deadline: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+            </div>
           </div>
 
           <div>
