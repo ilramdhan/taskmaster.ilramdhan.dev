@@ -21,7 +21,6 @@ import {
   Download,
   Upload,
   Check,
-  XCircle,
   AlertTriangle,
   Info,
   History,
@@ -118,7 +117,7 @@ const COLORS = {
   Pending: '#6366f1',
 };
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateId = () => Math.random().toString(36).substring(2, 9);
 
 const formatDate = (dateString: string) => {
   const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
@@ -513,8 +512,8 @@ const TaskCard: React.FC<{
         </div>
       </div>
     </div>
-  );
-};
+    );
+  };
 
 // --- Main App Component ---
 
@@ -564,50 +563,6 @@ const App: React.FC = () => {
   });
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
 
-  // --- Effects ---
-
-  // Load Data
-  useEffect(() => {
-    const storedUser = localStorage.getItem('utm_user');
-    if (storedUser) setUser(JSON.parse(storedUser));
-
-    const storedTheme = localStorage.getItem('utm_theme');
-    if (storedTheme === 'dark') {
-      setDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
-
-    const storedTasks = localStorage.getItem('utm_tasks');
-    const storedActivities = localStorage.getItem('utm_activities');
-
-    if (storedTasks && JSON.parse(storedTasks).length > 0) {
-      setTasks(JSON.parse(storedTasks));
-      if (storedActivities) setActivities(JSON.parse(storedActivities));
-    } else {
-      // AUTO LOAD DEFAULT DATA IF EMPTY
-      handleResetData(false);
-    }
-  }, []);
-
-  // Persist Data
-  useEffect(() => {
-    if (tasks.length > 0) localStorage.setItem('utm_tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-    if (activities.length > 0) localStorage.setItem('utm_activities', JSON.stringify(activities));
-  }, [activities]);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('utm_theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('utm_theme', 'light');
-    }
-  }, [darkMode]);
-
   // --- Helpers ---
 
   const addToast = (message: string, type: Toast['type'] = 'success') => {
@@ -631,98 +586,6 @@ const App: React.FC = () => {
       user: user?.name || 'User'
     };
     setActivities(prev => [newActivity, ...prev].slice(0, 50)); // Keep last 50 activities
-  };
-
-  // Calendar Helpers
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    return new Date(year, month, 1).getDay();
-  };
-
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  };
-
-  const handleDateClick = (day: number) => {
-      // Open modal with pre-filled date
-      const selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      // Set time to current time but on selected date
-      const now = new Date();
-      selectedDate.setHours(now.getHours(), now.getMinutes());
-      
-      // Local time ISO string adjustment
-      const tzOffset = selectedDate.getTimezoneOffset() * 60000;
-      const localISOTime = (new Date(selectedDate.getTime() - tzOffset)).toISOString().slice(0, 16);
-      
-      // Default deadline is 1 hour after start
-      const deadlineDate = new Date(selectedDate.getTime() + 60 * 60 * 1000);
-      const localISODeadline = (new Date(deadlineDate.getTime() - tzOffset)).toISOString().slice(0, 16);
-
-      setEditingTask(null);
-      setNewTaskForm({
-          title: '',
-          description: '',
-          startDate: localISOTime,
-          deadline: localISODeadline,
-          priority: 'Medium',
-          category: 'Work',
-          imageUrl: '',
-          subtasks: []
-      });
-      setNewSubtaskInput('');
-      setIsTaskModalOpen(true);
-  };
-
-  // Drag and Drop Helpers for Calendar
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-      e.dataTransfer.setData('taskId', taskId);
-      e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent, day: number) => {
-      e.preventDefault();
-      const taskId = e.dataTransfer.getData('taskId');
-      if (!taskId) return;
-
-      const task = tasks.find(t => t.id === taskId);
-      if (!task) return;
-
-      // Calculate new start date
-      const newStartDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      
-      // Keep original time of day
-      const oldStartDate = new Date(task.startDate);
-      newStartDate.setHours(oldStartDate.getHours(), oldStartDate.getMinutes());
-
-      // Calculate duration to shift deadline
-      const oldDeadline = new Date(task.deadline);
-      const duration = oldDeadline.getTime() - oldStartDate.getTime();
-      
-      const newDeadline = new Date(newStartDate.getTime() + duration);
-
-      // Update task
-      setTasks(prev => prev.map(t => 
-          t.id === taskId ? { ...t, startDate: newStartDate.toISOString(), deadline: newDeadline.toISOString() } : t
-      ));
-      
-      logActivity('Moved', task.title);
-      addToast(`Moved task to ${formatDate(newStartDate.toISOString())}`);
   };
 
   // --- Handlers: Auth ---
@@ -1040,6 +903,143 @@ const App: React.FC = () => {
     setEditingTask(null);
   };
 
+  // Calendar Helpers
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    return new Date(year, month, 1).getDay();
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  const handleDateClick = (day: number) => {
+      // Open modal with pre-filled date
+      const selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      // Set time to current time but on selected date
+      const now = new Date();
+      selectedDate.setHours(now.getHours(), now.getMinutes());
+      
+      // Local time ISO string adjustment
+      const tzOffset = selectedDate.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(selectedDate.getTime() - tzOffset)).toISOString().slice(0, 16);
+      
+      // Default deadline is 1 hour after start
+      const deadlineDate = new Date(selectedDate.getTime() + 60 * 60 * 1000);
+      const localISODeadline = (new Date(deadlineDate.getTime() - tzOffset)).toISOString().slice(0, 16);
+
+      setEditingTask(null);
+      setNewTaskForm({
+          title: '',
+          description: '',
+          startDate: localISOTime,
+          deadline: localISODeadline,
+          priority: 'Medium',
+          category: 'Work',
+          imageUrl: '',
+          subtasks: []
+      });
+      setNewSubtaskInput('');
+      setIsTaskModalOpen(true);
+  };
+
+  // Drag and Drop Helpers for Calendar
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+      e.dataTransfer.setData('taskId', taskId);
+      e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, day: number) => {
+      e.preventDefault();
+      const taskId = e.dataTransfer.getData('taskId');
+      if (!taskId) return;
+
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      // Calculate new start date
+      const newStartDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      
+      // Keep original time of day
+      const oldStartDate = new Date(task.startDate);
+      newStartDate.setHours(oldStartDate.getHours(), oldStartDate.getMinutes());
+
+      // Calculate duration to shift deadline
+      const oldDeadline = new Date(task.deadline);
+      const duration = oldDeadline.getTime() - oldStartDate.getTime();
+      
+      const newDeadline = new Date(newStartDate.getTime() + duration);
+
+      // Update task
+      setTasks(prev => prev.map(t => 
+          t.id === taskId ? { ...t, startDate: newStartDate.toISOString(), deadline: newDeadline.toISOString() } : t
+      ));
+      
+      logActivity('Moved', task.title);
+      addToast(`Moved task to ${formatDate(newStartDate.toISOString())}`);
+  };
+
+  // --- Effects ---
+
+  // Load Data
+  useEffect(() => {
+    const storedUser = localStorage.getItem('utm_user');
+    if (storedUser) setUser(JSON.parse(storedUser));
+
+    const storedTheme = localStorage.getItem('utm_theme');
+    if (storedTheme === 'dark') {
+      setDarkMode(true);
+      document.documentElement.classList.add('dark');
+    }
+
+    const storedTasks = localStorage.getItem('utm_tasks');
+    const storedActivities = localStorage.getItem('utm_activities');
+
+    if (storedTasks && JSON.parse(storedTasks).length > 0) {
+      setTasks(JSON.parse(storedTasks));
+      if (storedActivities) setActivities(JSON.parse(storedActivities));
+    } else {
+      // AUTO LOAD DEFAULT DATA IF EMPTY
+      handleResetData(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist Data
+  useEffect(() => {
+    if (tasks.length > 0) localStorage.setItem('utm_tasks', JSON.stringify(tasks));
+  }, [tasks]);
+
+  useEffect(() => {
+    if (activities.length > 0) localStorage.setItem('utm_activities', JSON.stringify(activities));
+  }, [activities]);
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('utm_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('utm_theme', 'light');
+    }
+  }, [darkMode]);
+
   // --- Derived State: Analytics & Notifications ---
 
   const stats = useMemo(() => {
@@ -1098,35 +1098,35 @@ const App: React.FC = () => {
 
   const priorityData = useMemo(() => {
     const activeTasks = tasks.filter(t => !t.deletedAt && !t.isArchived);
-    const counts = { High: 0, Medium: 0, Low: 0 };
+    const counts: Record<string, number> = { High: 0, Medium: 0, Low: 0 };
     activeTasks.forEach(t => { if (t.status === 'Pending') counts[t.priority]++; });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [tasks]);
 
-  const weeklyData = useMemo(() => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthlyActivityData = useMemo(() => {
     const today = new Date();
     const data = [];
     
-    for (let i = 6; i >= 0; i--) {
+    // Last 30 days
+    for (let i = 29; i >= 0; i--) {
         const date = new Date(today);
         date.setDate(today.getDate() - i);
-        const dayName = days[date.getDay()];
+        const dayNum = date.getDate();
         
         const activeTasks = tasks.filter(t => !t.deletedAt && !t.isArchived);
 
         const pendingCount = activeTasks.filter(t => {
             const tDate = new Date(t.createdAt);
-            return tDate.getDate() === date.getDate() && t.status === 'Pending';
+            return tDate.getDate() === date.getDate() && tDate.getMonth() === date.getMonth() && t.status === 'Pending';
         }).length;
 
         const completedCount = activeTasks.filter(t => {
-             // Mocking completion date logic based on existence
-             return t.status === 'Completed' && new Date(t.createdAt).getDay() === date.getDay();
+             const tDate = new Date(t.createdAt);
+             return t.status === 'Completed' && tDate.getDate() === date.getDate() && tDate.getMonth() === date.getMonth();
         }).length;
 
         data.push({
-            name: dayName,
+            name: dayNum, // Just the number
             completed: completedCount,
             pending: pendingCount
         });
@@ -1463,70 +1463,74 @@ const App: React.FC = () => {
                           </div>
                       </div>
 
-                      {/* Calendar Grid */}
-                      <div className="flex-1 grid grid-cols-7 grid-rows-[auto_1fr]">
-                          {/* Days Header */}
+                       {/* Calendar Days Header (Fixed) */}
+                       <div className="grid grid-cols-7 border-b border-gray-100 dark:border-slate-700">
                           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                              <div key={day} className="p-2 text-center text-sm font-semibold text-gray-500 dark:text-gray-400 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0">
+                              <div key={day} className="p-3 text-center text-sm font-semibold text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-slate-700 last:border-r-0">
                                   {day}
                               </div>
                           ))}
+                      </div>
 
-                          {/* Days Cells */}
-                          {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, i) => (
-                               <div key={`empty-${i}`} className="min-h-[8rem] bg-gray-50/50 dark:bg-slate-900/30 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0"></div>
-                          ))}
-                          
-                          {Array.from({ length: getDaysInMonth(currentDate) }).map((_, i) => {
-                              const day = i + 1;
-                              const currentDayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-                              // Filter tasks that span across this date
-                              const dayTasks = tasks.filter(t => !t.deletedAt && !t.isArchived && isDateInRange(currentDayDate, t.startDate, t.deadline));
-                              const isToday = new Date().toDateString() === currentDayDate.toDateString();
+                      {/* Calendar Grid Body (Scrollable & Flexible) */}
+                      <div className="flex-1 overflow-y-auto">
+                        <div className="grid grid-cols-7 auto-rows-fr">
+                            {/* Days Cells */}
+                            {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, i) => (
+                                <div key={`empty-${i}`} className="min-h-[8rem] bg-gray-50/50 dark:bg-slate-900/30 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0"></div>
+                            ))}
+                            
+                            {Array.from({ length: getDaysInMonth(currentDate) }).map((_, i) => {
+                                const day = i + 1;
+                                const currentDayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                                // Filter tasks that span across this date
+                                const dayTasks = tasks.filter(t => !t.deletedAt && !t.isArchived && isDateInRange(currentDayDate, t.startDate, t.deadline));
+                                const isToday = new Date().toDateString() === currentDayDate.toDateString();
 
-                              return (
-                                  <div 
-                                      key={day} 
-                                      className={`min-h-[8rem] p-2 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group relative`}
-                                      onClick={() => handleDateClick(day)}
-                                      onDragOver={handleDragOver}
-                                      onDrop={(e) => handleDrop(e, day)}
-                                  >
-                                      <div className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-primary-600 text-white shadow-md' : 'text-gray-700 dark:text-gray-300'}`}>
-                                          {day}
-                                      </div>
-                                      <div className="space-y-1 overflow-y-auto max-h-[80px] custom-scrollbar">
-                                          {dayTasks.map(t => {
-                                              const isStartDay = new Date(t.startDate).toDateString() === currentDayDate.toDateString();
-                                              return (
-                                              <div 
-                                                  key={t.id}
-                                                  draggable
-                                                  onDragStart={(e) => handleDragStart(e, t.id)}
-                                                  onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      openEditModal(t);
-                                                  }}
-                                                  className={`text-xs px-1.5 py-1 rounded truncate border-l-2 cursor-grab active:cursor-grabbing hover:opacity-80 shadow-sm ${
-                                                      t.status === 'Completed' ? 'bg-gray-100 text-gray-500 border-gray-400 dark:bg-slate-700 dark:text-gray-400 line-through' :
-                                                      t.priority === 'High' ? 'bg-red-50 text-red-700 border-red-500 dark:bg-red-900/20 dark:text-red-300' :
-                                                      t.priority === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-500 dark:bg-amber-900/20 dark:text-amber-300' :
-                                                      'bg-blue-50 text-blue-700 border-blue-500 dark:bg-blue-900/20 dark:text-blue-300'
-                                                  }`}
-                                                  title={`${t.title} (${formatDate(t.startDate)} - ${formatDate(t.deadline)})`}
-                                              >
-                                                  {isStartDay && <span className="font-bold mr-1">★</span>}
-                                                  {t.title}
-                                              </div>
-                                          )})}
-                                      </div>
-                                      {/* Add hint on hover */}
-                                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
-                                           <Plus className="text-gray-300 dark:text-gray-600 w-8 h-8" />
-                                      </div>
-                                  </div>
-                              );
-                          })}
+                                return (
+                                    <div 
+                                        key={day} 
+                                        className={`min-h-[8rem] p-2 border-b border-r border-gray-100 dark:border-slate-700 last:border-r-0 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group relative`}
+                                        onClick={() => handleDateClick(day)}
+                                        onDragOver={handleDragOver}
+                                        onDrop={(e) => handleDrop(e, day)}
+                                    >
+                                        <div className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-primary-600 text-white shadow-md' : 'text-gray-700 dark:text-gray-300'}`}>
+                                            {day}
+                                        </div>
+                                        <div className="space-y-1 overflow-y-auto max-h-[80px] custom-scrollbar">
+                                            {dayTasks.map(t => {
+                                                const isStartDay = new Date(t.startDate).toDateString() === currentDayDate.toDateString();
+                                                return (
+                                                <div 
+                                                    key={t.id}
+                                                    draggable
+                                                    onDragStart={(e) => handleDragStart(e, t.id)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openEditModal(t);
+                                                    }}
+                                                    className={`text-xs px-1.5 py-1 rounded truncate border-l-2 cursor-grab active:cursor-grabbing hover:opacity-80 shadow-sm ${
+                                                        t.status === 'Completed' ? 'bg-gray-100 text-gray-500 border-gray-400 dark:bg-slate-700 dark:text-gray-400 line-through' :
+                                                        t.priority === 'High' ? 'bg-red-50 text-red-700 border-red-500 dark:bg-red-900/20 dark:text-red-300' :
+                                                        t.priority === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-500 dark:bg-amber-900/20 dark:text-amber-300' :
+                                                        'bg-blue-50 text-blue-700 border-blue-500 dark:bg-blue-900/20 dark:text-blue-300'
+                                                    }`}
+                                                    title={`${t.title} (${formatDate(t.startDate)} - ${formatDate(t.deadline)})`}
+                                                >
+                                                    {isStartDay && <span className="font-bold mr-1">★</span>}
+                                                    {t.title}
+                                                </div>
+                                            )})}
+                                        </div>
+                                        {/* Add hint on hover */}
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                                            <Plus className="text-gray-300 dark:text-gray-600 w-8 h-8" />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                       </div>
                   </div>
               </div>
@@ -1610,12 +1614,12 @@ const App: React.FC = () => {
 
                     {/* Weekly Chart (Below Priority as requested) */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Weekly Activity</h3>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">30 Days Activity</h3>
                         <div className="h-64">
                             <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={weeklyData}>
+                            <BarChart data={monthlyActivityData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#334155' : '#e2e8f0'} />
-                                <XAxis dataKey="name" stroke={darkMode ? '#94a3b8' : '#64748b'} />
+                                <XAxis dataKey="name" stroke={darkMode ? '#94a3b8' : '#64748b'} interval={0} tick={{fontSize: 10}} />
                                 <YAxis stroke={darkMode ? '#94a3b8' : '#64748b'} />
                                 <Tooltip 
                                 contentStyle={{ backgroundColor: darkMode ? '#1e293b' : '#fff', borderColor: darkMode ? '#334155' : '#e2e8f0', color: darkMode ? '#fff' : '#000' }}
