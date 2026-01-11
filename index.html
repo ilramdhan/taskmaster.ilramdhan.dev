@@ -1,28 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ultimate Task Manager</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              primary: {
-                50: '#eef2ff',
-                100: '#e0e7ff',
-                500: '#6366f1',
-                600: '#4f46e5',
-                700: '#4338ca',
-              }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+    content="TaskMaster - A comprehensive task management application with calendar, analytics dashboard, and dark mode support" />
+  <meta name="author" content="TaskMaster Team" />
+  <meta name="keywords" content="task management, todo, productivity, calendar, dashboard" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <title>TaskMaster - Task Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            // Soft Brown/Mocha palette - warm and easy on the eyes
+            primary: {
+              50: '#faf7f5',
+              100: '#f5ede8',
+              200: '#e8d5c8',
+              300: '#d4b59e',
+              400: '#c49a7c',
+              500: '#a67c52',
+              600: '#8b6342',
+              700: '#6d4c35',
+              800: '#5a3f2e',
+              900: '#4a3427',
+            },
+            // Warm neutrals for backgrounds
+            warm: {
+              50: '#fdfcfb',
+              100: '#f8f5f2',
+              200: '#f0ebe5',
+              300: '#e4ddd4',
+              400: '#c9bfb3',
+              500: '#a89a8a',
+              600: '#8a7a68',
+              700: '#6e6054',
+              800: '#574c42',
+              900: '#3d352e',
             }
           }
         }
       }
-    </script>
+    }
+  </script>
   <script type="importmap">
 {
   "imports": {
@@ -37,8 +62,10 @@
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+
+<body class="bg-warm-50 text-warm-900 dark:bg-warm-900 dark:text-warm-100 transition-colors duration-300">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>

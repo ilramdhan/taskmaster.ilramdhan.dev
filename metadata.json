@@ -1,5 +1,5 @@
 {
-  "name": "Ultimate Task Manager",
-  "description": "A comprehensive, client-side task management dashboard with analytics, dark mode, and persistent storage.",
+  "name": "TaskMaster - Task Management",
+  "description": "A comprehensive, client-side task management dashboard with analytics, calendar view, dark mode, and persistent storage.",
   "requestFramePermissions": []
 }
